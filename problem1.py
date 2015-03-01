@@ -1,5 +1,6 @@
 def read_screen_user_file():
     _screen_user_count = {}
+    _screen_user = {}
     _user_set = set()
 
     f = open("screen_to_users.tsv", "r")
@@ -9,12 +10,17 @@ def read_screen_user_file():
         _user_set.add(int(user))
         try:
             _screen_user_count[int(screen)] += 1
+            _screen_user[int(screen)].append(int(user))
         except KeyError:
             _screen_user_count[int(screen)] = 1
+            _screen_user[int(screen)] = [int(user)]
         i += 1
+        if i == 20000000:
+            return _screen_user_count, _user_set, _screen_user
+
         print i
     
-    return _screen_user_count, _user_set
+    return _screen_user_count, _user_set, _screen_user
 
 def read_screen_costs_file():
     _screen_cost = {}
@@ -41,18 +47,22 @@ def rank_screens(_screens_to_be_considered, _screen_user_count, _screen_cost):
     final_rank = []
 
     for screen in _screens_to_be_considered:
-        screen_score = _screen_cost[screen] * 1000.0/_screen_user_count[screen]
+        screen_score = (_screen_cost[screen]/0.072) * (20.0/_screen_user_count[screen])
         final_rank.append((screen, screen_score))
 
     return sorted(final_rank, key=lambda x: x[1], reverse=True)
 
-def selected_screens(_screens_to_be_considered, _screen_user_count, _screen_cost, threshold):
+def selected_screens(_screens_to_be_considered, _screen_user_count, _screen_cost, threshold, _screen_user):
     current_users_count = 0
     current_cost = 0
     final_selected_screens = []
+    affected_users = set()
 
     for (screen, score) in _screens_to_be_considered:
         current_users_count += _screen_user_count[screen]
+        affected_users = affected_users.union(_screen_user[screen])
+        #print affected_users, _screen_user[screen], current_users_count, threshold
+        #if current_users_count >= threshold and len(affected_users) >= threshold:
         if current_users_count >= threshold:
             return final_selected_screens, current_cost
         current_cost += _screen_cost[screen]
@@ -61,13 +71,13 @@ def selected_screens(_screens_to_be_considered, _screen_user_count, _screen_cost
     return final_selected_screens
 
 def write_to_file(out_file_name, _screens_to_be_considered):
-    f = open(out_file_name, 'w')
+    f = open(out_file_name, 'wa')
 
     for screen in _screens_to_be_considered:
         f.write(str(screen) + "\n")
 
 if __name__ == "__main__":
-    (screen_user_count, user_set) = read_screen_user_file()
+    (screen_user_count, user_set, screen_user) = read_screen_user_file()
     total_number_of_users = len(user_set) 
     print total_number_of_users
     screen_cost = read_screen_costs_file()
@@ -79,6 +89,8 @@ if __name__ == "__main__":
 
     #ranked
     screens_to_be_considered = rank_screens(screens_to_be_considered, screen_user_count, screen_cost) 
-    screens_to_be_considered, current_cost = selected_screens(screens_to_be_considered, screen_user_count, screen_cost, threshold)
+    screens_to_be_considered, current_cost = selected_screens(screens_to_be_considered, screen_user_count, screen_cost, threshold, screen_user)
     print len(screens_to_be_considered), current_cost 
-    write_to_file('screen_1.txt', screens_to_be_considered)
+    print sorted(screen_user_count.items(), key=lambda x: x[1], reverse=True)[0]
+    print sorted(screen_cost.items(), key=lambda x: x[1], reverse=True)[0]
+    write_to_file('problem1_fourth.tsv', screens_to_be_considered)
